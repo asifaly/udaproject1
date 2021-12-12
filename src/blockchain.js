@@ -36,6 +36,7 @@ class Blockchain {
     async initializeChain() {
         if( this.height === -1){
             let block = new BlockClass.Block({data: 'Genesis Block'});
+            console.log("initializing blockchain...creating genesis block")
             await this._addBlock(block);
         }
     }
@@ -64,7 +65,18 @@ class Blockchain {
     _addBlock(block) {
         let self = this;
         return new Promise(async (resolve, reject) => {
-           
+            let height = await self.getChainHeight()
+            let newBlock = block
+            newBlock.time = new Date().getTime().toString().slice(0, -3)
+            newBlock.height = height + 1
+            if (self.height >= 0) {
+                newBlock.previousBlockHash = self.chain[height].hash
+            } 
+            newBlock.hash = SHA256(JSON.stringify(newBlock)).toString();
+            console.log(`new block ${JSON.stringify(newBlock).toString()} created`)
+            self.height +=1
+            self.chain.push(newBlock)
+            resolve(newBlock)
         });
     }
 
@@ -78,7 +90,8 @@ class Blockchain {
      */
     requestMessageOwnershipVerification(address) {
         return new Promise((resolve) => {
-            
+            let message = `${address}:${new Date().getTime().toString().slice(0,-3)}:starRegistry`;
+            resolve(message);
         });
     }
 
@@ -102,7 +115,20 @@ class Blockchain {
     submitStar(address, message, signature, star) {
         let self = this;
         return new Promise(async (resolve, reject) => {
-            
+            const messageTime = parseInt(message.split(':')[1])
+            const currentTime = parseInt(new Date().getTime().toString().slice(0, -3))
+            if ((messageTime + 300) >= currentTime) {
+                if (bitcoinMessage.verify(message, address, signature)) {
+                    let block = new BlockClass.Block({owner: address, star: star})
+                    let addedBlock = await self._addBlock(block)
+                    resolve(addedBlock)
+                } else {
+                    reject("Cannot verify")
+                }
+            } else {
+                reject ("Time Elapsed")
+            }
+
         });
     }
 
@@ -115,7 +141,12 @@ class Blockchain {
     getBlockByHash(hash) {
         let self = this;
         return new Promise((resolve, reject) => {
-           
+            let block = self.chain.filter((e) => e.hash === hash)[0]
+            if (block) {
+                resolve(block)
+            }else {
+                reject(new Error("no such block found"))
+            }
         });
     }
 
@@ -146,7 +177,19 @@ class Blockchain {
         let self = this;
         let stars = [];
         return new Promise((resolve, reject) => {
-            
+            if (self.height >=0 ) {
+                self.chain.forEach((block) => {
+                    let blockdata = block.getBData()
+                    if(blockdata) {
+                        if (blockdata.owner === address) {
+                            stars.push(blockdata)
+                        }
+                    }
+                })
+            resolve(stars)
+            } else {
+                reject(new Error("No Data"))
+            }
         });
     }
 
@@ -160,7 +203,30 @@ class Blockchain {
         let self = this;
         let errorLog = [];
         return new Promise(async (resolve, reject) => {
-            
+            let promises = [];
+            let chainIndex = 0;
+            self.chain.forEach(block => {
+                promises.push(block.validate());
+                if(block.height > 0) {
+                    let previousBlockHash = block.previousBlockHash;
+                    let blockHash = chain[chainIndex-1].hash;
+                    if(blockHash != previousBlockHash){
+                        errorLog.push(`Error - Block Height: ${block.height} - Previous Hash don't match.`);
+                    }
+                }
+                chainIndex++;
+            });
+            Promise.all(promises).then((results) => {
+                chainIndex = 0;
+                results.forEach(valid => {
+                    if(!valid){
+                        errorLog.push(`Error - Block Height: ${self.chain[chainIndex].height} - Has been Tampered.`);
+                    }
+                    chainIndex++;
+                });
+                resolve(errorLog);
+            }).catch((err) => { console.log(err); reject(err)});
+
         });
     }
 
