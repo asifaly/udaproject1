@@ -117,7 +117,7 @@ class Blockchain {
         return new Promise(async (resolve, reject) => {
             const messageTime = parseInt(message.split(':')[1])
             const currentTime = parseInt(new Date().getTime().toString().slice(0, -3))
-            if ((messageTime + 300) >= currentTime) {
+            if ((messageTime + 30000) >= currentTime) {
                 if (bitcoinMessage.verify(message, address, signature)) {
                     let block = new BlockClass.Block({owner: address, star: star})
                     let addedBlock = await self._addBlock(block)
@@ -204,25 +204,20 @@ class Blockchain {
         let errorLog = [];
         return new Promise(async (resolve, reject) => {
             let promises = [];
-            let chainIndex = 0;
-            self.chain.forEach(block => {
+            self.chain.forEach((block, index) => {
                 promises.push(block.validate());
-                if(block.height > 0) {
-                    let previousBlockHash = block.previousBlockHash;
-                    let blockHash = chain[chainIndex-1].hash;
-                    if(blockHash != previousBlockHash){
-                        errorLog.push(`Error - Block Height: ${block.height} - Previous Hash don't match.`);
+                if (index > 0) {
+                    if(block.previousBlockHash !== self.chain[index-1].hash) {
+                        errorLog.push(`${index} previousHash does not match`)
                     }
                 }
-                chainIndex++;
             });
             Promise.all(promises).then((results) => {
-                chainIndex = 0;
-                results.forEach(valid => {
+                results.forEach((valid, index) => {
+                    console.log(valid)
                     if(!valid){
-                        errorLog.push(`Error - Block Height: ${self.chain[chainIndex].height} - Has been Tampered.`);
+                        errorLog.push(`Error - Block Height: ${index} - Has been Tampered.`);
                     }
-                    chainIndex++;
                 });
                 resolve(errorLog);
             }).catch((err) => { console.log(err); reject(err)});
