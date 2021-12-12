@@ -117,7 +117,7 @@ class Blockchain {
         return new Promise(async (resolve, reject) => {
             const messageTime = parseInt(message.split(':')[1])
             const currentTime = parseInt(new Date().getTime().toString().slice(0, -3))
-            if ((messageTime + 30000) >= currentTime) {
+            if ((messageTime + 300) >= currentTime) {
                 if (bitcoinMessage.verify(message, address, signature)) {
                     let block = new BlockClass.Block({owner: address, star: star})
                     let addedBlock = await self._addBlock(block)
